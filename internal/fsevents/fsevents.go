@@ -18,6 +18,9 @@ static FSEventStreamRef EventStreamCreate(FSEventStreamContext * context, uintpt
 */
 import "C"
 import (
+	"errors"
+	"log"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -54,12 +57,21 @@ func fsevtCallback(stream C.FSEventStreamRef, info uintptr, numEvents C.size_t,
 
 	for i := range events {
 		etype := internal.OTHER
-		if (flags[i] & C.kFSEventStreamEventFlagItemCreated) != 0 {
+		if (flags[i] & C.kFSEventStreamEventFlagItemModified) != 0 {
+			etype = internal.MODIFIED
+		} else if (flags[i] & C.kFSEventStreamEventFlagItemCreated) != 0 {
 			etype = internal.CREATED
 		} else if (flags[i] & C.kFSEventStreamEventFlagItemRemoved) != 0 {
 			etype = internal.DELETED
-		} else if (flags[i] & C.kFSEventStreamEventFlagItemModified) != 0 {
-			etype = internal.MODIFIED
+		} else if (flags[i] & C.kFSEventStreamEventFlagRootChanged) != 0 {
+			// if the watched path itself is moved/removed we get this event
+			// but we have to check if the file exists in this case
+			_, err := os.Stat(C.GoString(paths[i]))
+			if errors.Is(err, os.ErrNotExist) {
+				etype = internal.DELETED
+			}
+		} else {
+			log.Println("unexp", flags[i])
 		}
 		events[i] = internal.Event{
 			Path: C.GoString(paths[i]),

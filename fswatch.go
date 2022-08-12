@@ -13,7 +13,6 @@ const (
 	NOTHING  = EventType(internal.NOTHING)  // nothing happened
 	CREATED  = EventType(internal.CREATED)  // something was created
 	DELETED  = EventType(internal.DELETED)  // something was deleted
-	MOVED    = EventType(internal.MOVED)    // something was renamed/moved
 	MODIFIED = EventType(internal.MODIFIED) // contents were modified
 	OTHER    = EventType(internal.OTHER)    // something else (metadata?) was modified
 )
@@ -45,11 +44,19 @@ func New(opts map[string]interface{}) *Watcher {
 }
 
 // File watches a single file, calling the observer with any events.
+// With a file, the only Events possible are:
+//   - MODIFIED indicates that the contents were modified
+//   - OTHER indicates changes to metadata or other OS features:
+//     permissions, access time, link count, etc.
+//   - DELETED indicates that the watched file was removed.
+//     No further events will be generated for the file.
 func File(path string, obs Observer) (cancel func(), err error) {
 	return wrapFiles(impl, []string{path}, obs)
 }
 
 // Files watches a list of files, calling the observer with any events.
+// Only MODIFIED, OTHER, and DELETED events will be observed.
+// See the File method for details about these event types.
 func Files(paths []string, obs Observer) (cancel func(), err error) {
 	return wrapFiles(impl, paths, obs)
 }

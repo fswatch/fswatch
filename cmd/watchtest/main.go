@@ -29,23 +29,30 @@ func printObserver(path string, ev fswatch.EventType) error {
 		es = "CREATED"
 	case fswatch.DELETED:
 		es = "DELETED"
-	case fswatch.MOVED:
-		es = "MOVED"
 	case fswatch.MODIFIED:
 		es = "MODIFIED"
 	case fswatch.OTHER:
 		es = "OTHER"
+		// don't print
+		return nil
 	}
 	log.Println(path, es)
 	return nil
 }
 
-func checkFileLoop(fn string) (expect chan fswatch.EventType, obs fswatch.Observer) {
+func checkFileLoop(filenames ...string) (expect chan fswatch.EventType, obs fswatch.Observer) {
 	expect = make(chan fswatch.EventType)
 	recvr := make(chan fswatch.EventType)
 	obs = fswatch.AsObserver(func(path string, ev fswatch.EventType) error {
 		printObserver(path, ev)
-		if path != fn {
+		valid := false
+		for _, fn := range filenames {
+			if path == fn {
+				valid = true
+				break
+			}
+		}
+		if !valid {
 			log.Fatal("invalid filename for event")
 		}
 		fmt.Fprintf(os.Stderr, ".")
@@ -58,7 +65,7 @@ func checkFileLoop(fn string) (expect chan fswatch.EventType, obs fswatch.Observ
 		for {
 			var rc fswatch.EventType
 			ev := <-expect
-			log.Println("Expect", ev)
+			//log.Println("Expect", ev)
 			if ev == EventSentinal {
 				fmt.Fprintf(os.Stderr, ".\n")
 				os.Stderr.Sync()
@@ -66,7 +73,6 @@ func checkFileLoop(fn string) (expect chan fswatch.EventType, obs fswatch.Observ
 				return
 			}
 			for rc = range recvr {
-				log.Println("Got", rc)
 				if ev == rc {
 					break
 				}
@@ -88,76 +94,5 @@ func main() {
 	flag.Parse()
 
 	doSingleFileTest(*testdur)
-}
-
-func doSingleFileTest(dur time.Duration) {
-
-	done := make(chan int)
-	time.AfterFunc(dur, func() {
-		close(done)
-	})
-
-	// create 0-byte starter file
-	rname1 := randName()
-	f, err := os.Create(rname1)
-	if err != nil {
-		log.Fatal(err)
-	}
-	f.Close()
-
-	<-time.After(time.Second)
-
-	log.Println("Watching one file: ", rname1)
-
-	expect, obs := checkFileLoop(rname1)
-	cancel1, err := fswatch.File(rname1, obs)
-	if err != nil {
-		cancel1()
-		log.Fatal(err)
-	}
-
-	expect <- fswatch.MODIFIED
-	f, err = os.OpenFile(rname1, os.O_RDWR, 0666)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = f.WriteString("Hello, World!\n")
-	if err != nil {
-		log.Fatal(err)
-	}
-	f.Sync()
-	f.Close()
-
-	expect <- fswatch.MODIFIED
-	f, err = os.OpenFile(rname1, os.O_RDWR, 0666)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = f.WriteString("Goodbye, World!\n")
-	if err != nil {
-		log.Fatal(err)
-	}
-	f.Sync()
-	f.Close()
-
-	expect <- fswatch.DELETED
-	err = os.Remove(rname1)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	expect <- EventSentinal
-	f, err = os.Create(rname1)
-	if err != nil {
-		log.Fatal(err)
-	}
-	f.Close()
-
-	err = os.Remove(rname1)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	<-done
-	close(expect)
+	doTwoFileTest(*testdur)
 }

@@ -9,14 +9,15 @@ import (
 )
 
 // Recursively watches all files/folders under the given path, calling the observer with any events.
+// A recurive watch is the only way to receive CREATED events for new files and folders.
+//
 // Note: a recursive watch is not always supported by the host operating system, in which case
 // ErrRecursiveUnsupported is returned. In this situation, this code will function similarly:
 //
 //   fileset, _ := fswatch.EnumerateFiles(path, true)
 //   cancel, _ := fswatch.Files(fileset, obs)
 //
-// Caveat of the code above: unless newly created files are added to a new watcher, you may
-// not receive notifications for changes to newly created files.
+// An important caveat of the code above: you will not receive CREATED notifications for new files.
 func Recursively(path string, obs Observer) (cancel func(), err error) {
 	p2, err := filepath.EvalSymlinks(path)
 	if err != nil {

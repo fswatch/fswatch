@@ -11,7 +11,6 @@ const (
 	NOTHING  EventType = iota // nothing happened
 	CREATED                   // something was created
 	DELETED                   // something was deleted
-	MOVED                     // something was renamed/moved
 	MODIFIED                  // contents were modified
 	OTHER                     // something else (metadata?) was modified
 )

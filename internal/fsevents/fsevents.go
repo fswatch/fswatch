@@ -56,26 +56,75 @@ func fsevtCallback(stream C.FSEventStreamRef, info uintptr, numEvents C.size_t,
 	flags := unsafe.Slice(cflags, n)
 
 	for i := range events {
-		etype := internal.OTHER
+		etype := internal.NOTHING
+		// Flags that won't be handled
+		//   These ones do not have direct bearing on events we care about:
+		//     kFSEventStreamEventFlagNone
+		//     kFSEventStreamEventFlagMustScanSubDirs
+		//     kFSEventStreamEventFlagUserDropped
+		//     kFSEventStreamEventFlagKernelDropped
+		//     kFSEventStreamEventFlagEventIdsWrapped
+		//     kFSEventStreamEventFlagHistoryDone
+		//     kFSEventStreamEventFlagItemIsDir
+		//     kFSEventStreamEventFlagItemIsFile
+		//     kFSEventStreamEventFlagItemIsHardlink
+		//     kFSEventStreamEventFlagItemIsLastHardlink
+		//     kFSEventStreamEventFlagItemIsSymlink
+		//     kFSEventStreamEventFlagOwnEvent
+		//   Indicate that a volume was (un)mounted under a watched directory:
+		//     kFSEventStreamEventFlagMount
+		//     kFSEventStreamEventFlagUnmount
+		//   Can't find docs on this one:
+		//     kFSEventStreamEventFlagItemCloned
+
+		// Flags that are handled by this code:
+		//   OTHER
+		//     kFSEventStreamEventFlagItemChangeOwner
+		//     kFSEventStreamEventFlagItemFinderInfoMod
+		//     kFSEventStreamEventFlagItemInodeMetaMod
+		//     kFSEventStreamEventFlagItemXattrMod
+		//
+		//   MODIFIED
+		//     kFSEventStreamEventFlagItemModified
+		//
+		//   CREATED and/or DELETED
+		//     kFSEventStreamEventFlagItemCreated
+		//     kFSEventStreamEventFlagItemRenamed
+		//     kFSEventStreamEventFlagItemRemoved
+		//     **kFSEventStreamEventFlagRootChanged
+
 		if (flags[i] & C.kFSEventStreamEventFlagItemModified) != 0 {
 			etype = internal.MODIFIED
 		} else if (flags[i] & C.kFSEventStreamEventFlagItemCreated) != 0 {
 			etype = internal.CREATED
 		} else if (flags[i] & C.kFSEventStreamEventFlagItemRemoved) != 0 {
 			etype = internal.DELETED
-		} else if (flags[i] & C.kFSEventStreamEventFlagRootChanged) != 0 {
-			// if the watched path itself is moved/removed we get this event
-			// but we have to check if the file exists in this case
+
+		} else if (flags[i]&C.kFSEventStreamEventFlagRootChanged) != 0 ||
+			(flags[i]&C.kFSEventStreamEventFlagItemRenamed) != 0 {
+			// if the watched path itself is moved/removed we get RootChanged
+			// if a path is renamed, we get events for both old and new
+			// so we have to check if the file exists in this case
 			_, err := os.Stat(C.GoString(paths[i]))
 			if errors.Is(err, os.ErrNotExist) {
 				etype = internal.DELETED
+			} else if err == nil && (flags[i]&C.kFSEventStreamEventFlagItemRenamed) != 0 {
+				etype = internal.CREATED
 			}
+		} else if (flags[i] & (C.kFSEventStreamEventFlagItemChangeOwner |
+			C.kFSEventStreamEventFlagItemFinderInfoMod |
+			C.kFSEventStreamEventFlagItemInodeMetaMod |
+			C.kFSEventStreamEventFlagItemXattrMod)) != 0 {
+			etype = internal.OTHER
 		} else {
-			log.Println("unexp", flags[i])
+			log.Printf("unexp flags=0x%08x", flags[i])
 		}
-		events[i] = internal.Event{
-			Path: C.GoString(paths[i]),
-			Type: etype,
+
+		if etype != internal.NOTHING {
+			events[i] = internal.Event{
+				Path: C.GoString(paths[i]),
+				Type: etype,
+			}
 		}
 	}
 

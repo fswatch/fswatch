@@ -74,9 +74,13 @@ func (x *Interface) readEvents(r io.Reader) (internal.Event, error) {
 		evt.Path += string(sname)
 	}
 
-	if (ie.Mask&unix.IN_MOVE) != 0 || // only recursive
-		(ie.Mask&unix.IN_MOVE_SELF) != 0 {
-		evt.Type = internal.MOVED
+	//if (ie.Mask & unix.IN_MOVE) != 0 { // only recursive
+	//   the directory containing a moved file...
+	//}
+
+	if (ie.Mask & unix.IN_MOVE_SELF) != 0 {
+		// evt.Path is the OLD filename
+		evt.Type = internal.DELETED
 	}
 
 	if (ie.Mask & unix.IN_MODIFY) != 0 {

@@ -9,31 +9,28 @@ import (
 	"github.com/fswatch/fswatch/internal"
 )
 
-// New returns a new polling filesystem watcher.
-// It supports 2 options:
-//    "latency" = time.Duration
-//    "hash"    = "md5"
+// New returns a new polling filesystem watcher, which generates:
+//   DELETED event when a watched file disappears.
+//   MODIFIED event when the mod time or size changes.
+//   OTHER event when the permissions changes.
+//
+// It supports a "latency" option (of type time.Duration)
+// that specifies how frequently to poll.
 //
 func New(opts map[string]interface{}) *Interface {
 	lat := time.Second / 4
-	fast := true
 	if opts != nil {
 		if x, ok := opts["latency"]; ok {
 			lat = x.(time.Duration)
 		}
-		if x, ok := opts["hash"]; ok && x == "md5" {
-			fast = false
-		}
 	}
 	return &Interface{
-		Latency:    lat,
-		UseHashing: !fast,
+		Latency: lat,
 	}
 }
 
 type Interface struct {
-	Latency    time.Duration
-	UseHashing bool
+	Latency time.Duration
 
 	mu    sync.Mutex
 	files map[string]*finfo
@@ -44,7 +41,6 @@ type finfo struct {
 	size  int64
 	mtime int64
 	perms uint32
-	hash  []byte
 }
 
 func noop() {}
@@ -117,7 +113,7 @@ func (x *Interface) Files(paths []string, obs internal.ObserveFunc) (cancel func
 	}, nil
 }
 
-// Files watches a list of files, calling the observer with any events.
+// Recursively polling is not supported
 func (x *Interface) Recursively(path string, obs internal.ObserveFunc) (cancel func(), err error) {
 	return noop, internal.ErrNotImplemented
 }

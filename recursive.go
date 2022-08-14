@@ -4,8 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-
-	"github.com/fswatch/fswatch/internal"
 )
 
 // Recursively watches all files/folders under the given path, calling the observer with any events.
@@ -18,22 +16,8 @@ import (
 //   cancel, _ := fswatch.Files(fileset, obs)
 //
 // An important caveat of the code above: you will not receive CREATED notifications for new files.
-func Recursively(path string, obs Observer) (cancel func(), err error) {
-	p2, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return func() {}, err
-	}
-	p2, err = filepath.Abs(p2)
-	if err != nil {
-		return func() {}, err
-	}
-
-	x := &oa{obs: obs, relprefix: path, absprefix: p2}
-	c, e := impl.Recursively(p2, x.O())
-	if e == internal.ErrNotImplemented {
-		return func() {}, ErrRecursiveUnsupported
-	}
-	return c, e
+func Recursively(path string, obs ObserveFunc) (cancel func(), err error) {
+	return wrapRecursively(impl, path, obs)
 }
 
 // ErrRecursiveUnsupported is returned when the host OS does not support a recursive filesystem watch.

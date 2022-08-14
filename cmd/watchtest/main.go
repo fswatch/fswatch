@@ -40,10 +40,10 @@ func printObserver(path string, ev fswatch.EventType) error {
 	return nil
 }
 
-func checkFileLoop(filenames ...string) (expect chan fswatch.EventType, obs fswatch.Observer) {
+func checkFileLoop(filenames ...string) (expect chan fswatch.EventType, obs fswatch.ObserveFunc) {
 	expect = make(chan fswatch.EventType)
 	recvr := make(chan fswatch.EventType)
-	obs = fswatch.AsObserver(func(path string, ev fswatch.EventType) error {
+	obs = fswatch.ObserveFunc(func(path string, ev fswatch.EventType) error {
 		printObserver(path, ev)
 		valid := false
 		for _, fn := range filenames {

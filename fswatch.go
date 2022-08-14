@@ -19,28 +19,47 @@ const (
 
 const OptionGenericPoller = "-generic-poller-"
 
-type Observer interface {
-	// Observe the event ev on the watched path.
-	// If an error is returned, the observer is not called again.
-	Observe(path string, ev EventType) error
-}
-
-type Watcher struct {
-	w watcher
-}
-
-func New(opts map[string]interface{}) *Watcher {
+func New(opts map[string]interface{}) Interface {
 	if opts != nil {
 		if _, ok := opts[OptionGenericPoller]; ok {
-			return &Watcher{
+			return &wrap{
 				w: watcher(poller.New(opts)),
 			}
 		}
 	}
 
-	return &Watcher{
+	return &wrap{
 		w: newImpl(opts),
 	}
+}
+
+// Interface describes the features of a Filesystem Watch implementation.
+type Interface interface {
+	// File watches a single file, calling the observer with any events.
+	// With a file, the only Events possible are:
+	//   - MODIFIED indicates that the contents were modified
+	//   - OTHER indicates changes to metadata or other OS features:
+	//     permissions, access time, link count, etc.
+	//   - DELETED indicates that the watched file was removed.
+	//     No further events will be generated for the file.
+	File(path string, obs ObserveFunc) (cancel func(), err error)
+
+	// Files watches a list of files, calling the observer with any events.
+	// Only MODIFIED, OTHER, and DELETED events will be observed.
+	// See the File method for details about these event types.
+	Files(paths []string, obs ObserveFunc) (cancel func(), err error)
+
+	// Recursively watches all files/folders under the given path, calling the observer with any events.
+	// A recurive watch is the only way to receive CREATED events for new files and folders.
+	//
+	// Note: a recursive watch is not always supported by the host operating system, in which case
+	// ErrRecursiveUnsupported is returned. In this situation, this code will function similarly:
+	//
+	//   fileset, _ := fswatch.EnumerateFiles(path, true)
+	//   cancel, _ := fswatch.Files(fileset, obs)
+	//
+	// An important caveat of the code above: you will not receive CREATED notifications for new files.
+	Recursively(path string, obs ObserveFunc) (cancel func(), err error)
 }
 
 // File watches a single file, calling the observer with any events.
@@ -50,13 +69,13 @@ func New(opts map[string]interface{}) *Watcher {
 //     permissions, access time, link count, etc.
 //   - DELETED indicates that the watched file was removed.
 //     No further events will be generated for the file.
-func File(path string, obs Observer) (cancel func(), err error) {
+func File(path string, obs ObserveFunc) (cancel func(), err error) {
 	return wrapFiles(impl, []string{path}, obs)
 }
 
 // Files watches a list of files, calling the observer with any events.
 // Only MODIFIED, OTHER, and DELETED events will be observed.
 // See the File method for details about these event types.
-func Files(paths []string, obs Observer) (cancel func(), err error) {
+func Files(paths []string, obs ObserveFunc) (cancel func(), err error) {
 	return wrapFiles(impl, paths, obs)
 }

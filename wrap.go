@@ -11,7 +11,7 @@ type watcher interface {
 	Recursively(path string, obs internal.ObserveFunc) (cancel func(), err error)
 }
 
-func wrapFiles(w watcher, paths []string, obs Observer) (cancel func(), err error) {
+func wrapFiles(w watcher, paths []string, obs ObserveFunc) (cancel func(), err error) {
 	var remap map[string]string
 	p2s := make([]string, len(paths))
 	for i, p := range paths {
@@ -34,10 +34,10 @@ func wrapFiles(w watcher, paths []string, obs Observer) (cancel func(), err erro
 	}
 
 	x := &oa{obs: obs, remap: remap}
-	return impl.Files(p2s, x.O())
+	return w.Files(p2s, x.O())
 }
 
-func wrapRecursively(w watcher, path string, obs Observer) (cancel func(), err error) {
+func wrapRecursively(w watcher, path string, obs ObserveFunc) (cancel func(), err error) {
 	p2, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return func() {}, err
@@ -53,4 +53,20 @@ func wrapRecursively(w watcher, path string, obs Observer) (cancel func(), err e
 		return func() {}, ErrRecursiveUnsupported
 	}
 	return c, e
+}
+
+type wrap struct {
+	w watcher
+}
+
+func (x *wrap) File(path string, obs ObserveFunc) (cancel func(), err error) {
+	return wrapFiles(x.w, []string{path}, obs)
+}
+
+func (x *wrap) Files(paths []string, obs ObserveFunc) (cancel func(), err error) {
+	return wrapFiles(x.w, paths, obs)
+}
+
+func (x *wrap) Recursively(path string, obs ObserveFunc) (cancel func(), err error) {
+	return wrapRecursively(x.w, path, obs)
 }

@@ -11,21 +11,10 @@ import (
 // If an error is returned, the observer is not called again.
 type ObserveFunc func(path string, ev EventType) error
 
-type fx ObserveFunc
-
-func (x fx) Observe(path string, ev EventType) error {
-	return x(path, ev)
-}
-
-// AsObserver wraps an ObserveFunc into an Observer
-func AsObserver(f ObserveFunc) Observer {
-	return fx(f)
-}
-
 //////////////
 
 type oa struct {
-	obs       Observer
+	obs       ObserveFunc
 	remap     map[string]string
 	relprefix string
 	absprefix string
@@ -46,7 +35,7 @@ func (x *oa) All(evts []internal.Event) error {
 		if x.relprefix != x.absprefix {
 			p = filepath.Join(x.relprefix, strings.TrimPrefix(p, x.absprefix))
 		}
-		err := x.obs.Observe(p, EventType(e.Type))
+		err := x.obs(p, EventType(e.Type))
 		if err != nil {
 			return err
 		}
